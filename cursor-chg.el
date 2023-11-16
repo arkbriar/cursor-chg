@@ -94,6 +94,9 @@
 ;;
 ;;; Change Log:
 ;;
+;; 2023/11/16 shunjie
+;;     curchg-set-cursor-type:
+;;       Send DECSUSR escape sequence to change cursor shapes in xterm terminals.
 ;; 2011/01/03 dadams
 ;;     Added autoload cookies for defcustom and commands.
 ;; 2006/10/28 dadams
@@ -222,7 +225,26 @@ To get the frame's current cursor type, use `frame-parameters'."
   (interactive
    (list (intern (completing-read "Cursor type: "
                                   (mapcar 'list '("box" "hollow" "bar" "hbar" nil))))))
-  (modify-frame-parameters (selected-frame) (list (cons 'cursor-type cursor-type))))
+  (if (display-graphic-p)
+      (modify-frame-parameters (selected-frame) (list (cons 'cursor-type cursor-type)))
+    ;; xterm DECSCUSR control sequence:
+    ;; https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h4-Functions-using-CSI-_-ordered-by-the-final-character-lparen-s-rparen:CSI-Ps-SP-q.1D81
+    ;;
+    ;; CSI Ps SP q
+    ;;       Set cursor style (DECSCUSR), VT520.
+    ;;         Ps = 0  ⇒  blinking block.
+    ;;         Ps = 1  ⇒  blinking block (default).
+    ;;         Ps = 2  ⇒  steady block.
+    ;;         Ps = 3  ⇒  blinking underline.
+    ;;         Ps = 4  ⇒  steady underline.
+    ;;         Ps = 5  ⇒  blinking bar, xterm.
+    ;;         Ps = 6  ⇒  steady bar, xterm.
+    (let* ((shape (or (car-safe cursor-type) cursor-type))
+           (param (cond ((eq shape 'bar) "5")
+                        ((eq shape 'hbar) "3")
+                        ((eq shape 'box) "1")
+                        (t "2"))))
+      (send-string-to-terminal (concat "\e[" param " q")))))
 
 ;;;###autoload
 (defalias 'toggle-cursor-type-when-idle 'curchg-toggle-cursor-type-when-idle)
